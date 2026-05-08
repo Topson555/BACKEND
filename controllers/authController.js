@@ -64,10 +64,12 @@ exports.signup = async (req, res) => {
       };
 
       await transporter.sendMail(mailOptions);
+      console.log(`✅ Success: Verification email sent to ${user.email}`); 
+      
       res.status(201).json({ success: true, message: 'Account created! Please check your email.' });
     }
   } catch (error) {
-    console.error("Signup Error:", error);
+    console.error("❌ Signup Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -96,6 +98,8 @@ exports.verifyEmail = async (req, res) => {
     user.verificationToken = undefined;
     await user.save();
 
+    console.log(`✅ User Verified: ${user.email}`);
+
     res.send(`
       <div style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
         <h1 style="color: #10b981;">Email Verified Successfully!</h1>
@@ -108,7 +112,7 @@ exports.verifyEmail = async (req, res) => {
       </div>
     `);
   } catch (error) {
-    console.error("Verification Error:", error);
+    console.error("❌ Verification Error:", error);
     res.status(500).send('<h1>Server error during verification.</h1>');
   }
 };
