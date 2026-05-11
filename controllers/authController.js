@@ -7,35 +7,65 @@ let transporterPromise = null;
 
 const createTransporter = async () => {
   const smtpHost = 'smtp.gmail.com';
+  const auth = {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  };
 
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: 465,
-    secure: true,
-    family: 4,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-    tls: {
-      servername: smtpHost,
-      rejectUnauthorized: false,
-      minVersion: 'TLSv1.2'
-    },
-    connectionTimeout: 30000,
-    greetingTimeout: 30000,
-    socketTimeout: 300000,
-  });
+  if (!auth.user || !auth.pass) {
+    throw new Error('Missing EMAIL_USER or EMAIL_PASS environment variables');
+  }
 
-  await transporter.verify();
-  console.log('✅ Email transporter is ready to send messages');
-  return transporter;
+  const transportOptions = [
+    {
+      host: smtpHost,
+      port: 465,
+      secure: true,
+      family: 4,
+      auth,
+      tls: {
+        servername: smtpHost,
+        rejectUnauthorized: false,
+        minVersion: 'TLSv1.2'
+      },
+      connectionTimeout: 30000,
+      greetingTimeout: 30000,
+      socketTimeout: 300000,
+    },
+    {
+      host: smtpHost,
+      port: 587,
+      secure: false,
+      family: 4,
+      auth,
+      tls: {
+        servername: smtpHost,
+        rejectUnauthorized: false,
+        minVersion: 'TLSv1.2'
+      },
+      connectionTimeout: 30000,
+      greetingTimeout: 30000,
+      socketTimeout: 300000,
+    }
+  ];
+
+  let lastError;
+  for (const options of transportOptions) {
+    try {
+      const transporter = nodemailer.createTransport(options);
+      await transporter.verify();
+      console.log(`✅ Email transporter is ready on port ${options.port}`);
+      return transporter;
+    } catch (error) {
+      console.warn(`⚠️ Email transporter verify failed on port ${options.port}:`, error.message);
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Failed to initialize email transporter');
 };
 
-transporterPromise = createTransporter().catch(error => {
-  console.error('❌ Failed to initialize email transporter:', error);
-  return null;
-});
+transporterPromise = createTransporter();
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
