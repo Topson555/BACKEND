@@ -1,27 +1,28 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const dns = require('dns').promises;
+const net = require('net');
 const nodemailer = require('nodemailer');
 
 let transporterPromise = null;
 
 const createTransporter = async () => {
   const smtpHost = 'smtp.gmail.com';
-  let host = smtpHost;
+  const connection = await new Promise((resolve, reject) => {
+    const socket = net.createConnection({ host: smtpHost, port: 587, family: 4 });
+    socket.setTimeout(30000);
 
-  try {
-    const ipv4Addresses = await dns.resolve4(smtpHost);
-    if (ipv4Addresses && ipv4Addresses.length) {
-      host = ipv4Addresses[0];
-      console.log(`✅ Resolved SMTP IPv4 host: ${host}`);
-    }
-  } catch (dnsError) {
-    console.warn(`⚠️ Could not resolve SMTP IPv4 address, falling back to hostname (${smtpHost}):`, dnsError.message);
-  }
+    socket.once('connect', () => {
+      socket.setKeepAlive(true);
+      resolve(socket);
+    });
+
+    socket.once('error', reject);
+    socket.once('timeout', () => reject(new Error('SMTP connection timeout')));
+  });
 
   const transporter = nodemailer.createTransport({
-    host,
+    host: smtpHost,
     port: 587,
     secure: false,
     auth: {
@@ -35,7 +36,8 @@ const createTransporter = async () => {
     },
     connectionTimeout: 30000,
     greetingTimeout: 30000,
-    socketTimeout: 300000
+    socketTimeout: 300000,
+    connection,
   });
 
   await transporter.verify();
