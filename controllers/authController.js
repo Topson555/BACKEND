@@ -1,31 +1,51 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const dns = require('dns').promises;
 const nodemailer = require('nodemailer');
 
-// 1. Configure Nodemailer transporter with hostname instead of hardcoded IP
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    servername: 'smtp.gmail.com',
-    rejectUnauthorized: false,
-    minVersion: 'TLSv1.2'
-  }
-});
+let transporterPromise = null;
 
-// Verify transporter configuration on startup so connection issues surface early
-transporter.verify((verifyError, success) => {
-  if (verifyError) {
-    console.error('❌ Email transporter verification failed:', verifyError);
-  } else {
-    console.log('✅ Email transporter is ready to send messages');
+const createTransporter = async () => {
+  const smtpHost = 'smtp.gmail.com';
+  let host = smtpHost;
+
+  try {
+    const ipv4Addresses = await dns.resolve4(smtpHost);
+    if (ipv4Addresses && ipv4Addresses.length) {
+      host = ipv4Addresses[0];
+      console.log(`✅ Resolved SMTP IPv4 host: ${host}`);
+    }
+  } catch (dnsError) {
+    console.warn(`⚠️ Could not resolve SMTP IPv4 address, falling back to hostname (${smtpHost}):`, dnsError.message);
   }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+    tls: {
+      servername: smtpHost,
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1.2'
+    },
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 300000
+  });
+
+  await transporter.verify();
+  console.log('✅ Email transporter is ready to send messages');
+  return transporter;
+};
+
+transporterPromise = createTransporter().catch(error => {
+  console.error('❌ Failed to initialize email transporter:', error);
+  return null;
 });
 
 const generateToken = (id) => {
@@ -76,8 +96,13 @@ exports.signup = async (req, res) => {
         `,
       };
 
+      const transporter = await transporterPromise;
+      if (!transporter) {
+        throw new Error('Email transporter is not available. Please check the email configuration.');
+      }
+
       await transporter.sendMail(mailOptions);
-      console.log(`✅ Success: Verification email sent to ${user.email}`); 
+      console.log(`✅ Success: Verification email sent to ${user.email}`);
       res.status(201).json({ success: true, message: 'Account created! Please check your email.' });
     }
   } catch (error) {
