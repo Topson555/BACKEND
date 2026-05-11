@@ -3,9 +3,10 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
-// 1. Configure Nodemailer transporter
+// 1. Configure Nodemailer transporter - DIRECT IPV4 BYPASS
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
+  // Using direct IP for smtp.gmail.com to bypass ENETUNREACH IPv6 issues
+  host: '74.125.142.108', 
   port: 587,
   secure: false, 
   auth: {
@@ -13,7 +14,10 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
   tls: {
-    rejectUnauthorized: false 
+    // This servername is REQUIRED so Gmail knows you are legitimately talking to them
+    servername: 'smtp.gmail.com',
+    rejectUnauthorized: false,
+    minVersion: 'TLSv1.2'
   }
 });
 
@@ -60,6 +64,7 @@ exports.signup = async (req, res) => {
             <div style="text-align: center; margin: 30px 0;">
               <a href="${verificationUrl}" style="background-color: #2563eb; color: #fff; padding: 14px 24px; text-decoration: none; font-weight: bold; border-radius: 8px; display: inline-block;">Verify Email Address</a>
             </div>
+            <p style="color: #9ca3af; font-size: 11px;">Link: ${verificationUrl}</p>
           </div>
         `,
       };
@@ -70,7 +75,7 @@ exports.signup = async (req, res) => {
     }
   } catch (error) {
     console.error("❌ Signup Error:", error);
-    res.status(500).json({ message: "Email service failed. Please check backend logs." });
+    res.status(500).json({ message: "Email service failed.", error: error.message });
   }
 };
 
@@ -100,6 +105,7 @@ exports.verifyEmail = async (req, res) => {
     res.send(`
       <div style="text-align: center; margin-top: 50px; font-family: sans-serif;">
         <h1 style="color: #10b981;">Email Verified!</h1>
+        <p>Redirecting to login...</p>
         <script>
           setTimeout(() => { window.location.href = '${frontendLoginUrl}'; }, 3000);
         </script>
@@ -111,7 +117,7 @@ exports.verifyEmail = async (req, res) => {
   }
 };
 
-// @desc    Authenticate user & get token (Login) -- THIS WAS MISSING!
+// @desc    Authenticate user & get token (Login)
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
