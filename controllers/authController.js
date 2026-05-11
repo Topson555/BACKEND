@@ -1,30 +1,18 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const net = require('net');
 const nodemailer = require('nodemailer');
 
 let transporterPromise = null;
 
 const createTransporter = async () => {
   const smtpHost = 'smtp.gmail.com';
-  const connection = await new Promise((resolve, reject) => {
-    const socket = net.createConnection({ host: smtpHost, port: 587, family: 4 });
-    socket.setTimeout(30000);
-
-    socket.once('connect', () => {
-      socket.setKeepAlive(true);
-      resolve(socket);
-    });
-
-    socket.once('error', reject);
-    socket.once('timeout', () => reject(new Error('SMTP connection timeout')));
-  });
 
   const transporter = nodemailer.createTransport({
     host: smtpHost,
-    port: 587,
-    secure: false,
+    port: 465,
+    secure: true,
+    family: 4,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
@@ -37,7 +25,6 @@ const createTransporter = async () => {
     connectionTimeout: 30000,
     greetingTimeout: 30000,
     socketTimeout: 300000,
-    connection,
   });
 
   await transporter.verify();
