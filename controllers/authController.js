@@ -1,9 +1,36 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const tls = require('tls');
 const nodemailer = require('nodemailer');
 
 let transporterPromise = null;
+
+const createTlsConnection = (host, port) =>
+  new Promise((resolve, reject) => {
+    const socket = tls.connect(
+      {
+        host,
+        port,
+        family: 4,
+        servername: host,
+        rejectUnauthorized: false,
+        minVersion: 'TLSv1.2',
+      },
+      () => {
+        if (socket.authorized === false && socket.authorizationError) {
+          console.warn(`⚠️ TLS authorization warning for ${host}:${port}:`, socket.authorizationError);
+        }
+        resolve(socket);
+      }
+    );
+
+    socket.once('error', reject);
+    socket.setTimeout(30000, () => {
+      socket.destroy();
+      reject(new Error('SMTP TLS connection timeout'));
+    });
+  });
 
 const createTransporter = async () => {
   const smtpHost = 'smtp.gmail.com';
@@ -16,53 +43,53 @@ const createTransporter = async () => {
     throw new Error('Missing EMAIL_USER or EMAIL_PASS environment variables');
   }
 
-  const transportOptions = [
-    {
-      host: smtpHost,
-      port: 465,
-      secure: true,
-      family: 4,
+  try {
+    const connection = await createTlsConnection(smtpHost, 465);
+    const transporter = nodemailer.createTransport({
+      connection,
       auth,
+      name: smtpHost,
       tls: {
         servername: smtpHost,
         rejectUnauthorized: false,
-        minVersion: 'TLSv1.2'
       },
       connectionTimeout: 30000,
       greetingTimeout: 30000,
       socketTimeout: 300000,
-    },
-    {
-      host: smtpHost,
-      port: 587,
-      secure: false,
-      family: 4,
-      auth,
-      tls: {
-        servername: smtpHost,
-        rejectUnauthorized: false,
-        minVersion: 'TLSv1.2'
-      },
-      connectionTimeout: 30000,
-      greetingTimeout: 30000,
-      socketTimeout: 300000,
-    }
-  ];
+    });
 
-  let lastError;
-  for (const options of transportOptions) {
-    try {
-      const transporter = nodemailer.createTransport(options);
-      await transporter.verify();
-      console.log(`✅ Email transporter is ready on port ${options.port}`);
-      return transporter;
-    } catch (error) {
-      console.warn(`⚠️ Email transporter verify failed on port ${options.port}:`, error.message);
-      lastError = error;
-    }
+    await transporter.verify();
+    console.log('✅ Email transporter is ready on port 465 via IPv4');
+    return transporter;
+  } catch (error) {
+    console.warn('⚠️ Failed to initialize SMTPS IPv4 transporter on port 465:', error.message);
   }
 
-  throw lastError || new Error('Failed to initialize email transporter');
+  const fallbackOptions = {
+    host: smtpHost,
+    port: 587,
+    secure: false,
+    family: 4,
+    auth,
+    tls: {
+      servername: smtpHost,
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1.2'
+    },
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 300000,
+  };
+
+  try {
+    const transporter = nodemailer.createTransport(fallbackOptions);
+    await transporter.verify();
+    console.log('✅ Email transporter is ready on port 587 via IPv4');
+    return transporter;
+  } catch (error) {
+    console.warn('⚠️ Email transporter verify failed on port 587:', error.message);
+    throw error;
+  }
 };
 
 transporterPromise = createTransporter();
