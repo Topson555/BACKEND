@@ -2,39 +2,42 @@
 const dotenv = require('dotenv');
 dotenv.config();
 const express = require('express');
-const authRoutes = require('./routes/authRoutes');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const authRoutes = require('./routes/authRoutes');
 
-
-// Connect to database
+// 1. Connect to database
 connectDB();
 
+// 2. Initialize Express
 const app = express();
 
 // ==========================================
-// 1. GLOBAL MIDDLEWARES (Must come first!)
+// 3. GLOBAL MIDDLEWARES
 // ==========================================
 
-// Enable CORS
+// Body parser middleware - MUST be before routes!
+app.use(express.json());
+
+// Enable CORS with expanded permissions
 app.use(cors({
   origin: [
     'http://localhost:5173',
     'http://localhost:3000',
-    'http://192.168.239.56:3000'
+    'http://192.168.239.56:3000', // Old local IP
+    'http://192.168.160.56:3000', // YOUR CURRENT LOCAL IP
+    /\.vercel\.app$/,            // This allows any Vercel deployment
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Body parser middleware - makes req.body readable BEFORE routes handle it!
-app.use(express.json());
-
-
 // ==========================================
-// 2. ROUTES (Must come after middlewares!)
+// 4. ROUTES
 // ==========================================
 
-// Basic status route
+// Basic status route for Render "Health Check"
 app.get('/', (req, res) => {
   res.send('Support Central API is running...');
 });
@@ -42,9 +45,8 @@ app.get('/', (req, res) => {
 // Mount auth routes
 app.use('/api/auth', authRoutes);
 
-
 // ==========================================
-// 3. START SERVER
+// 5. START SERVER
 // ==========================================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
