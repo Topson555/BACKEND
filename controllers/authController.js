@@ -3,21 +3,28 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
-// 1. Configure Nodemailer transporter - DIRECT IPV4 BYPASS
+// 1. Configure Nodemailer transporter with hostname instead of hardcoded IP
 const transporter = nodemailer.createTransport({
-  // Using direct IP for smtp.gmail.com to bypass ENETUNREACH IPv6 issues
-  host: '74.125.142.108', 
+  host: 'smtp.gmail.com',
   port: 587,
-  secure: false, 
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
   tls: {
-    // This servername is REQUIRED so Gmail knows you are legitimately talking to them
     servername: 'smtp.gmail.com',
     rejectUnauthorized: false,
     minVersion: 'TLSv1.2'
+  }
+});
+
+// Verify transporter configuration on startup so connection issues surface early
+transporter.verify((verifyError, success) => {
+  if (verifyError) {
+    console.error('❌ Email transporter verification failed:', verifyError);
+  } else {
+    console.log('✅ Email transporter is ready to send messages');
   }
 });
 
