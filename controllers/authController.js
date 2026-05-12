@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
-// 1. Configure Nodemailer transporter - GMAIL SERVICE OPTIMIZED
+// 1. Configure Nodemailer transporter - FORCED IPV4 & 465
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   host: 'smtp.gmail.com',
@@ -11,12 +11,14 @@ const transporter = nodemailer.createTransport({
   secure: true, // Use true for port 465
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    pass: process.env.EMAIL_PASS, // Should be the 16-character App Password (no spaces)
   },
-  // Increased timeouts to prevent ETIMEDOUT on slow cloud networks
-  connectionTimeout: 30000, 
-  greetingTimeout: 30000,
-  socketTimeout: 30000,
+  // CRITICAL: Force IPv4 to fix "connect ENETUNREACH" errors on cloud hosts like Render
+  family: 4, 
+  // High timeouts to handle cloud cold-starts
+  connectionTimeout: 45000, 
+  greetingTimeout: 45000,
+  socketTimeout: 45000,
   tls: {
     rejectUnauthorized: false
   }
@@ -71,15 +73,18 @@ exports.signup = async (req, res) => {
         `,
       };
 
+      // Attempt to send email
       await transporter.sendMail(mailOptions);
+      
       console.log(`✅ Success: Verification email sent to ${user.email}`); 
       res.status(201).json({ success: true, message: 'Account created! Please check your email.' });
     }
   } catch (error) {
-    console.error("❌ Signup Error:", error);
-    // Returning the error message to help debug the frontend
+    console.error("❌ Signup Error Details:", error);
+    
+    // If email fails, we should handle the response so the frontend knows
     res.status(500).json({ 
-        message: "Email service failed. Check Render logs for ETIMEDOUT.", 
+        message: "Account created, but email service failed.", 
         error: error.message 
     });
   }
