@@ -3,21 +3,22 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
-// 1. Configure Nodemailer transporter - DIRECT IPV4 BYPASS
+// 1. Configure Nodemailer transporter - GMAIL SERVICE OPTIMIZED
 const transporter = nodemailer.createTransport({
-  // Using direct IP for smtp.gmail.com to bypass ENETUNREACH IPv6 issues
-  host: '74.125.142.108', 
-  port: 587,
-  secure: false, 
+  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // Use true for port 465
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  // Increased timeouts to prevent ETIMEDOUT on slow cloud networks
+  connectionTimeout: 30000, 
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
   tls: {
-    // This servername is REQUIRED so Gmail knows you are legitimately talking to them
-    servername: 'smtp.gmail.com',
-    rejectUnauthorized: false,
-    minVersion: 'TLSv1.2'
+    rejectUnauthorized: false
   }
 });
 
@@ -49,6 +50,7 @@ exports.signup = async (req, res) => {
     });
 
     if (user) {
+      // Priority: Render environment variable, then fallback to local
       const host = process.env.BASE_URL || 'http://localhost:5000';
       const verificationUrl = `${host}/api/auth/verify-email?token=${verificationToken}`;
 
@@ -75,7 +77,11 @@ exports.signup = async (req, res) => {
     }
   } catch (error) {
     console.error("❌ Signup Error:", error);
-    res.status(500).json({ message: "Email service failed.", error: error.message });
+    // Returning the error message to help debug the frontend
+    res.status(500).json({ 
+        message: "Email service failed. Check Render logs for ETIMEDOUT.", 
+        error: error.message 
+    });
   }
 };
 
