@@ -3,22 +3,22 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
-// 1. Configure Nodemailer - STABLE CLOUD CONFIG
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, 
+  port: 587, // Switch to 587
+  secure: false, // Must be false for 587
   auth: {
     user: "okewaleemmanuel211@gmail.com",
     pass: process.env.EMAIL_PASS, 
   },
-  family: 4, // Forces IPv4 to stop ENETUNREACH errors
-  connectionTimeout: 60000, 
-  greetingTimeout: 60000,
-  socketTimeout: 60000,
+  family: 4, 
+  connectionTimeout: 30000, 
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
   tls: {
-    servername: 'smtp.gmail.com',
-    rejectUnauthorized: false
+    // This helps bypass the security handshake delay on cloud servers
+    rejectUnauthorized: false,
+    minVersion: "TLSv1.2"
   }
 });
 
