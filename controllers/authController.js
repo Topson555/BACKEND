@@ -3,22 +3,26 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
+/**
+ * OPTION A: DIRECT IPV4 BYPASS
+ * We use a hardcoded IP for smtp.gmail.com to bypass Render's DNS resolution lag.
+ */
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587, // Switch to 587
-  secure: false, // Must be false for 587
+  host: '142.251.2.108', // Direct IPv4 for smtp.gmail.com
+  port: 465,
+  secure: true, // Use SSL/TLS
   auth: {
     user: "okewaleemmanuel211@gmail.com",
     pass: process.env.EMAIL_PASS, 
   },
-  family: 4, 
-  connectionTimeout: 30000, 
-  greetingTimeout: 30000,
-  socketTimeout: 30000,
+  family: 4, // Force IPv4
+  connectionTimeout: 45000,
+  greetingTimeout: 45000,
+  socketTimeout: 45000,
   tls: {
-    // This helps bypass the security handshake delay on cloud servers
-    rejectUnauthorized: false,
-    minVersion: "TLSv1.2"
+    // CRITICAL: Tells the SSL certificate we are actually talking to Gmail
+    servername: 'smtp.gmail.com',
+    rejectUnauthorized: false
   }
 });
 
@@ -70,8 +74,10 @@ exports.signup = async (req, res) => {
         `,
       };
 
-      // FIRE AND FORGET: No 'await' so frontend stays fast
-      transporter.sendMail(mailOptions).catch(err => {
+      // FIRE AND FORGET: Respond to frontend immediately while email sends in background
+      transporter.sendMail(mailOptions).then(() => {
+        console.log(`✅ Success: Verification email sent to ${user.email}`);
+      }).catch(err => {
         console.error("❌ Background Email Error:", err);
       });
       
