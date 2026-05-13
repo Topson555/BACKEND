@@ -5,23 +5,11 @@ const nodemailer = require('nodemailer');
 
 // 1. Configure Nodemailer transporter - FORCED IPV4 & 465
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // Use true for port 465
+  service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // Should be the 16-character App Password (no spaces)
+    user: "okewaleemmanuel211@gmail.com",
+    pass: process.env.GOOGLE_APP_PASSWORD, // The 16-character App Password
   },
-  // CRITICAL: Force IPv4 to fix "connect ENETUNREACH" errors on cloud hosts like Render
-  family: 4, 
-  // High timeouts to handle cloud cold-starts
-  connectionTimeout: 45000, 
-  greetingTimeout: 45000,
-  socketTimeout: 45000,
-  tls: {
-    rejectUnauthorized: false
-  }
 });
 
 const generateToken = (id) => {
