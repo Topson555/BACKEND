@@ -70,7 +70,7 @@ exports.signup = async (req, res) => {
         `,
       };
 
-      // 🔥 FIRE AND FORGET: No 'await' so frontend stays fast
+      // FIRE AND FORGET: No 'await' so frontend stays fast
       transporter.sendMail(mailOptions).catch(err => {
         console.error("❌ Background Email Error:", err);
       });
@@ -87,4 +87,64 @@ exports.signup = async (req, res) => {
   }
 };
 
-// ... keep verifyEmail and login as they are ...
+// @desc    Verify email token
+exports.verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;
+    const frontendLoginUrl = process.env.FRONTEND_URL || 'http://localhost:3000/auth';
+
+    if (!token) return res.status(400).send('<h1>Error: Missing token</h1>');
+
+    const user = await User.findOne({ verificationToken: token }).select('+verificationToken');
+
+    if (!user) {
+      return res.status(400).send(`
+        <div style="text-align: center; margin-top: 50px; font-family: sans-serif;">
+          <h1 style="color: #ef4444;">Verification Link Invalid</h1>
+          <a href="${frontendLoginUrl}">Back to Login</a>
+        </div>
+      `);
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    await user.save();
+
+    res.send(`
+      <div style="text-align: center; margin-top: 50px; font-family: sans-serif;">
+        <h1 style="color: #10b981;">Email Verified!</h1>
+        <p>Redirecting to login...</p>
+        <script>
+          setTimeout(() => { window.location.href = '${frontendLoginUrl}'; }, 3000);
+        </script>
+      </div>
+    `);
+  } catch (error) {
+    console.error("❌ Verification Error:", error);
+    res.status(500).send('<h1>Server error during verification.</h1>');
+  }
+};
+
+// @desc    Authenticate user & get token (Login)
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email }).select('+password');
+    
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    if (!user.isVerified) {
+      return res.status(403).json({ message: 'Please verify your email address to log in.' });
+    }
+
+    res.json({
+      success: true,
+      user: { id: user._id, fullName: user.fullName, email: user.email, role: user.role },
+      token: generateToken(user._id),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
