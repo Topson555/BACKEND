@@ -4,31 +4,37 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const dns = require('dns');
 
-// ✅ Force IPv4 DNS resolution — fixes ENETUNREACH on Render
 dns.setDefaultResultOrder('ipv4first');
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  connectionTimeout: 45000,
-  greetingTimeout: 45000,
-  socketTimeout: 45000,
-  tls: {
-    servername: 'smtp.gmail.com',
-  },
-});
+let transporter;
 
-transporter.verify((error) => {
-  if (error) {
-    console.error("❌ SMTP config broken at startup:", error.message);
-  } else {
-    console.log("✅ SMTP transporter is ready");
-  }
+dns.resolve4('smtp.gmail.com', (err, addresses) => {
+  const gmailIP = (!err && addresses.length > 0) ? addresses[0] : 'smtp.gmail.com';
+  console.log(`📧 Resolved SMTP host to: ${gmailIP}`);
+
+  transporter = nodemailer.createTransport({
+    host: gmailIP,
+    port: 465,
+    secure: true,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+    connectionTimeout: 45000,
+    greetingTimeout: 45000,
+    socketTimeout: 45000,
+    tls: {
+      servername: 'smtp.gmail.com',
+    },
+  });
+
+  transporter.verify((error) => {
+    if (error) {
+      console.error("❌ SMTP config broken at startup:", error.message);
+    } else {
+      console.log("✅ SMTP transporter is ready");
+    }
+  });
 });
 
 const generateToken = (id) => {
@@ -79,11 +85,16 @@ exports.signup = async (req, res) => {
         `,
       };
 
-      transporter.sendMail(mailOptions).then(() => {
-        console.log(`✅ Success: Verification email sent to ${user.email}`);
-      }).catch(err => {
-        console.error("❌ Background Email Error:", err);
-      });
+      // ✅ Guard in case transporter isn't ready yet
+      if (transporter) {
+        transporter.sendMail(mailOptions).then(() => {
+          console.log(`✅ Success: Verification email sent to ${user.email}`);
+        }).catch(err => {
+          console.error("❌ Background Email Error:", err);
+        });
+      } else {
+        console.error("❌ Transporter not ready yet — email not sent");
+      }
 
       console.log(`✅ Success: Signup processed for ${user.email}`);
       res.status(201).json({ success: true, message: 'Account created! Please check your email.' });
