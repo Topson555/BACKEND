@@ -3,25 +3,19 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
-/**
- * OPTION A: DIRECT IPV4 BYPASS
- * We use a hardcoded IP for smtp.gmail.com to bypass Render's DNS resolution lag.
- */
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com', // ← Use hostname, never hardcoded IP
+  host: 'smtp.gmail.com',
   port: 465,
   secure: true,
   auth: {
-    user: "okewaleemmanuel211@gmail.com",
+    user: process.env.EMAIL_USER,  // ✅ fixed
     pass: process.env.EMAIL_PASS,
   },
-  family: 4, // Keep this — IPv4 is fine on Render
+  family: 4,
   connectionTimeout: 45000,
   greetingTimeout: 45000,
   socketTimeout: 45000,
-  // ← Remove the tls block entirely, it's no longer needed
 });
-
 
 transporter.verify((error) => {
   if (error) {
@@ -30,7 +24,6 @@ transporter.verify((error) => {
     console.log("✅ SMTP transporter is ready");
   }
 });
-
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -64,7 +57,7 @@ exports.signup = async (req, res) => {
       const verificationUrl = `${host}/api/auth/verify-email?token=${verificationToken}`;
 
       const mailOptions = {
-        from: `"Support Central" <okewaleemmanuel211@gmail.com>`,
+        from: `"Support Central" <${process.env.EMAIL_USER}>`,  // ✅ fixed
         to: user.email,
         subject: 'Verify your Support Central Account',
         html: `
@@ -86,15 +79,15 @@ exports.signup = async (req, res) => {
       }).catch(err => {
         console.error("❌ Background Email Error:", err);
       });
-      
-      console.log(`✅ Success: Signup processed for ${user.email}`); 
+
+      console.log(`✅ Success: Signup processed for ${user.email}`);
       res.status(201).json({ success: true, message: 'Account created! Please check your email.' });
     }
   } catch (error) {
     console.error("❌ Signup Error Details:", error);
-    res.status(500).json({ 
-        message: "Signup failed on server.", 
-        error: error.message 
+    res.status(500).json({
+      message: "Signup failed on server.",
+      error: error.message
     });
   }
 };
@@ -142,7 +135,7 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email }).select('+password');
-    
+
     if (!user || !(await user.matchPassword(password))) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
