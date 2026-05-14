@@ -8,23 +8,29 @@ const nodemailer = require('nodemailer');
  * We use a hardcoded IP for smtp.gmail.com to bypass Render's DNS resolution lag.
  */
 const transporter = nodemailer.createTransport({
-  host: '142.251.2.108', // Direct IPv4 for smtp.gmail.com
+  host: 'smtp.gmail.com', // ← Use hostname, never hardcoded IP
   port: 465,
-  secure: true, // Use SSL/TLS
+  secure: true,
   auth: {
     user: "okewaleemmanuel211@gmail.com",
-    pass: process.env.EMAIL_PASS, 
+    pass: process.env.EMAIL_PASS,
   },
-  family: 4, // Force IPv4
+  family: 4, // Keep this — IPv4 is fine on Render
   connectionTimeout: 45000,
   greetingTimeout: 45000,
   socketTimeout: 45000,
-  tls: {
-    // CRITICAL: Tells the SSL certificate we are actually talking to Gmail
-    servername: 'smtp.gmail.com',
-    rejectUnauthorized: false
+  // ← Remove the tls block entirely, it's no longer needed
+});
+
+
+transporter.verify((error) => {
+  if (error) {
+    console.error("❌ SMTP config broken at startup:", error.message);
+  } else {
+    console.log("✅ SMTP transporter is ready");
   }
 });
+
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
