@@ -14,8 +14,8 @@ dns.resolve4('smtp.gmail.com', (err, addresses) => {
 
   transporter = nodemailer.createTransport({
     host: gmailIP,
-    port: 465,
-    secure: true,
+    port: 587,         // ✅ switched from 465
+    secure: false,     // ✅ switched from true
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
@@ -25,6 +25,7 @@ dns.resolve4('smtp.gmail.com', (err, addresses) => {
     socketTimeout: 45000,
     tls: {
       servername: 'smtp.gmail.com',
+      rejectUnauthorized: false,
     },
   });
 
@@ -85,7 +86,6 @@ exports.signup = async (req, res) => {
         `,
       };
 
-      // ✅ Guard in case transporter isn't ready yet
       if (transporter) {
         transporter.sendMail(mailOptions).then(() => {
           console.log(`✅ Success: Verification email sent to ${user.email}`);
