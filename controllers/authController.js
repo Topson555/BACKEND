@@ -1,42 +1,10 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
-const dns = require('dns');
+const { Resend } = require('resend'); //
 
-dns.setDefaultResultOrder('ipv4first');
-
-let transporter;
-
-dns.resolve4('smtp.gmail.com', (err, addresses) => {
-  const gmailIP = (!err && addresses.length > 0) ? addresses[0] : 'smtp.gmail.com';
-  console.log(`📧 Resolved SMTP host to: ${gmailIP}`);
-
-  transporter = nodemailer.createTransport({
-    host: gmailIP,
-    port: 587,         // ✅ switched from 465
-    secure: false,     // ✅ switched from true
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-    connectionTimeout: 45000,
-    greetingTimeout: 45000,
-    socketTimeout: 45000,
-    tls: {
-      servername: 'smtp.gmail.com',
-      rejectUnauthorized: false,
-    },
-  });
-
-  transporter.verify((error) => {
-    if (error) {
-      console.error("❌ SMTP config broken at startup:", error.message);
-    } else {
-      console.log("✅ SMTP transporter is ready");
-    }
-  });
-});
+// Initialize Resend with your API Key from Render Environment Variables
+const resend = new Resend(process.env.RESEND_API_KEY); //
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -69,8 +37,10 @@ exports.signup = async (req, res) => {
       const host = process.env.BASE_URL || 'http://localhost:5000';
       const verificationUrl = `${host}/api/auth/verify-email?token=${verificationToken}`;
 
-      const mailOptions = {
-        from: `"Support Central" <${process.env.EMAIL_USER}>`,
+      // 📧 Send Email via Resend API (Standard HTTPS Port 443)
+      // Note: On Resend's free tier, you must use 'onboarding@resend.dev'
+      resend.emails.send({
+        from: 'onboarding@resend.dev',
         to: user.email,
         subject: 'Verify your Support Central Account',
         html: `
@@ -84,17 +54,11 @@ exports.signup = async (req, res) => {
             <p style="color: #9ca3af; font-size: 11px;">Link: ${verificationUrl}</p>
           </div>
         `,
-      };
-
-      if (transporter) {
-        transporter.sendMail(mailOptions).then(() => {
-          console.log(`✅ Success: Verification email sent to ${user.email}`);
-        }).catch(err => {
-          console.error("❌ Background Email Error:", err);
-        });
-      } else {
-        console.error("❌ Transporter not ready yet — email not sent");
-      }
+      }).then(() => {
+        console.log(`✅ Success: Verification email sent via Resend to ${user.email}`);
+      }).catch(err => {
+        console.error("❌ Resend API Error:", err);
+      });
 
       console.log(`✅ Success: Signup processed for ${user.email}`);
       res.status(201).json({ success: true, message: 'Account created! Please check your email.' });
